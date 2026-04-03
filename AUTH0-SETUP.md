@@ -26,9 +26,9 @@ Auth0 Dashboard → Applications → Create Application
 
 ```
 Settings tab:
-  Allowed Callback URLs:        http://localhost:3000/auth/callback
-  Allowed Logout URLs:          http://localhost:3000
-  Allowed Web Origins:          http://localhost:3000
+  Allowed Callback URLs:        http://localhost:3001/auth/callback
+  Allowed Logout URLs:          http://localhost:3001
+  Allowed Web Origins:          http://localhost:3001
 
   (For production, add your Vercel URL to each)
 ```
@@ -62,7 +62,7 @@ AUTH0_ISSUER_BASE_URL=https://dev-3o1tehxthhxupbyz.us.auth0.com
 AUTH0_CLIENT_ID=5HFFJeDRNvOnhSErxdF5uAXJaWj0Is5b
 AUTH0_CLIENT_SECRET=bYcOY9w40NGpMz5wPW3fWSR5EoRIxgI5YufMmxeeK8vr7w0g8CPUzOf32PXzBgBT
 AUTH0_SECRET=<run: openssl rand -hex 32>
-AUTH0_BASE_URL=http://localhost:3000
+AUTH0_BASE_URL=http://localhost:3001
 ```
 
 ---
@@ -111,7 +111,7 @@ AUTH0_AUDIENCE=https://guardian-agent.local/api
 ```
 GitHub → Settings → Developer Settings → OAuth Apps → New OAuth App
   Application name: Guardian Agent
-  Homepage URL: http://localhost:3000
+  Homepage URL: http://localhost:3001
   Authorization callback URL: https://dev-3o1tehxthhxupbyz.us.auth0.com/login/callback
 ```
 
@@ -300,19 +300,21 @@ const auth0 = new Auth0Client({
 ```env
 # Auth0
 AUTH0_SECRET=<openssl rand -hex 32>
-AUTH0_BASE_URL=http://localhost:3000
+AUTH0_BASE_URL=http://localhost:3001
 AUTH0_ISSUER_BASE_URL=https://dev-3o1tehxthhxupbyz.us.auth0.com
 AUTH0_DOMAIN=dev-3o1tehxthhxupbyz.us.auth0.com
 AUTH0_CLIENT_ID=5HFFJeDRNvOnhSErxdF5uAXJaWj0Is5b
-AUTH0_CLIENT_SECRET=bYcOY9w40NGpMz5wPW3fWSR5EoRIxgI5YufMmxeeK8vr7w0g8CPUzOf32PXzBgBT
-AUTH0_AUDIENCE=https://guardian-agent.local/api
+AUTH0_CLIENT_SECRET=<from Auth0 dashboard>
+AUTH0_AUDIENCE=https://dev-3o1tehxthhxupbyz.us.auth0.com/api/v2/
 
 # OpenAI (for Vercel AI SDK agent)
 OPENAI_API_KEY=sk-...
 
-# Feature flags
-USE_MOCK_TOKENS=false
+# Feature flags — set to false once Token Vault access is granted
+USE_MOCK_TOKENS=true
 ```
+
+> **Port**: Guardian runs on **3001** (not 3000). Make sure Auth0 callback URLs match.
 
 ---
 
@@ -343,7 +345,7 @@ git add . && git commit -m "Add app config" && git push
 Run through this after setup:
 
 - [ ] `pnpm dev` starts without Auth0 errors
-- [ ] Navigate to `http://localhost:3000` → see landing page
+- [ ] Navigate to `http://localhost:3001` → see landing page
 - [ ] Click "Sign in with Auth0" → redirected to Auth0 Universal Login
 - [ ] Log in → redirected to `/dashboard`
 - [ ] Navigate to Connections → see GitHub and Google cards
