@@ -91,6 +91,12 @@ See [`.env.example`](.env.example) for all required variables.
 ```bash
 pnpm dev          # Start dev server (port 3001)
 pnpm build        # Production build
-pnpm test         # Run tests
+pnpm test         # Run unit tests (vitest, 16 tests)
+pnpm test:e2e     # Run E2E tests (Playwright, 21 tests)
+pnpm test:e2e:ui  # Run E2E tests with interactive UI
 pnpm lint         # Lint code
 ```
+
+## Live Demo
+
+**Production**: https://guardian-agent-production.up.railway.app
