@@ -6,8 +6,8 @@ let db: Database.Database | null = null;
 
 export function getDb(): Database.Database {
   if (!db) {
-    const isVercel = !!process.env.VERCEL;
-    const dbPath = isVercel ? ":memory:" : path.join(process.cwd(), "guardian.db");
+    const isCloud = !!process.env.VERCEL || !!process.env.RAILWAY_ENVIRONMENT;
+    const dbPath = isCloud ? ":memory:" : path.join(process.cwd(), "guardian.db");
     db = new Database(dbPath);
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = ON");
