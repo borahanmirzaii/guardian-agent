@@ -1,17 +1,26 @@
-import { getUser } from "@/lib/auth0";
+import { auth0, getUser } from "@/lib/auth0";
 import { ConnectionCard } from "@/components/connection-card";
 import { Shield } from "lucide-react";
+
+async function checkConnection(connection: string): Promise<boolean> {
+  try {
+    await auth0.getAccessTokenForConnection({ connection });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export default async function ConnectionsPage() {
   const user = await getUser();
   if (!user) return null;
 
-  // In a real implementation, check Token Vault for active connections
-  // For now, show both as available to connect
-  const connections = {
-    github: false,
-    google: false,
-  };
+  const [github, google] = await Promise.all([
+    checkConnection("github"),
+    checkConnection("google-oauth2"),
+  ]);
+
+  const connections = { github, google };
 
   return (
     <div className="space-y-6">

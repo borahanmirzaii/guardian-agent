@@ -9,6 +9,9 @@ export type AuditEvent =
   | "step_up_denied"
   | "step_up_timeout"
   | "write_token_minted"
+  | "token_vault_success"
+  | "token_vault_fallback"
+  | "token_vault_write_token_acquired"
   | "remediation_executed"
   | "remediation_failed"
   | "write_token_expired";
@@ -24,6 +27,9 @@ const EVENT_CATEGORIES: Record<AuditEvent, AuditCategory> = {
   step_up_denied: "step_up",
   step_up_timeout: "step_up",
   write_token_minted: "write",
+  token_vault_success: "read",
+  token_vault_fallback: "read",
+  token_vault_write_token_acquired: "write",
   remediation_executed: "write",
   remediation_failed: "write",
   write_token_expired: "write",

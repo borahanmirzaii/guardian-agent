@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUser } from "@/lib/auth0";
+import { Octokit } from "octokit";
+import { google } from "googleapis";
+import { auth0, getUser } from "@/lib/auth0";
 import {
   getFindingById,
   updateFindingStatus,
@@ -7,6 +9,75 @@ import {
   updateRemediation,
 } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
+
+async function createGitHubIssue(
+  token: string,
+  repo: string,
+  title: string
+): Promise<string> {
+  const octokit = new Octokit({ auth: token });
+  const [owner, name] = repo.split("/");
+  if (!owner || !name) {
+    throw new Error(`Invalid repo format: ${repo}`);
+  }
+  const { data: issue } = await octokit.rest.issues.create({
+    owner,
+    repo: name,
+    title: `Security Alert: ${title}`,
+    body: [
+      "## Guardian Security Alert",
+      "",
+      `**Finding:** ${title}`,
+      "",
+      "This issue was automatically created by Guardian Agent after step-up approval.",
+      "Please rotate the exposed credential immediately.",
+      "",
+      "---",
+      "*Created by Guardian Agent with time-limited write access.*",
+    ].join("\n"),
+    labels: ["security"],
+  });
+  return `Created GitHub issue #${issue.number} on ${repo}: "${issue.title}"`;
+}
+
+async function removeGoogleForwarding(
+  token: string,
+  email: string
+): Promise<string> {
+  const auth = new google.auth.OAuth2();
+  auth.setCredentials({ access_token: token });
+  const gmail = google.gmail({ version: "v1", auth });
+
+  // Disable auto-forwarding if it matches
+  try {
+    const { data: fwd } = await gmail.users.settings.getAutoForwarding({ userId: "me" });
+    if (fwd.enabled && fwd.emailAddress === email) {
+      await gmail.users.settings.updateAutoForwarding({
+        userId: "me",
+        requestBody: { enabled: false, emailAddress: email, disposition: "leaveInInbox" },
+      });
+      return `Disabled auto-forwarding to ${email}`;
+    }
+  } catch {
+    // Auto-forwarding not accessible or not matching
+  }
+
+  // Remove matching filter-based forwarding
+  try {
+    const { data: filtersResponse } = await gmail.users.settings.filters.list({ userId: "me" });
+    const filters = filtersResponse.filter ?? [];
+    for (const filter of filters) {
+      if (filter.action?.forward === email && filter.id) {
+        await gmail.users.settings.filters.delete({ userId: "me", id: filter.id });
+        return `Removed forwarding filter to ${email}`;
+      }
+    }
+  } catch {
+    // Filter access not available
+  }
+
+  return `Forwarding rule to ${email} not found or already removed`;
+}
 
 export async function POST(request: NextRequest) {
   const user = await getUser();
@@ -32,13 +103,11 @@ export async function POST(request: NextRequest) {
 
   const evidence = finding.evidence ? JSON.parse(finding.evidence) : {};
 
-  // Determine elevated scopes
   const elevatedScopes =
     finding.provider === "github"
       ? ["repo:write"]
       : ["gmail.settings.sharing"];
 
-  // Create remediation record
   const remediation = insertRemediation({
     finding_id,
     user_id: userId,
@@ -47,22 +116,17 @@ export async function POST(request: NextRequest) {
     token_ttl: 60,
   });
 
-  // Log step-up request
   logAudit({
     userId,
     event: "step_up_requested",
     provider: finding.provider,
     scopes: elevatedScopes,
-    details: {
-      finding_id,
-      action,
-      reason: finding.title,
-    },
+    details: { finding_id, action, reason: finding.title },
   });
 
   updateFindingStatus(finding_id, "remediating");
 
-  // Simulate step-up approval (in real flow, CIBA would handle this)
+  // Step-up approval (CIBA simulation for UI; real token comes from Token Vault)
   logAudit({
     userId,
     event: "step_up_approved",
@@ -70,7 +134,6 @@ export async function POST(request: NextRequest) {
     scopes: elevatedScopes,
   });
 
-  // Log write token minted
   const now = new Date();
   logAudit({
     userId,
@@ -81,22 +144,37 @@ export async function POST(request: NextRequest) {
   });
 
   try {
-    // Execute remediation action
+    const useMock = process.env.USE_MOCK_TOKENS === "true";
     let result: string;
+
     if (action === "create_issue" && finding.provider === "github") {
-      // In real implementation, use elevated GitHub token to create issue
-      // For mock: simulate issue creation
-      result = `Created GitHub issue on ${evidence.repo}: "Security Alert: ${finding.title}"`;
-    } else if (
-      action === "remove_forwarding" &&
-      finding.provider === "google"
-    ) {
-      result = `Removed forwarding rule to ${evidence.email}`;
+      if (useMock) {
+        result = `Created GitHub issue on ${evidence.repo}: "Security Alert: ${finding.title}"`;
+      } else {
+        const { token } = await auth0.getAccessTokenForConnection({ connection: "github" });
+        logAudit({
+          userId,
+          event: "token_vault_write_token_acquired",
+          provider: "github",
+        });
+        result = await createGitHubIssue(token, evidence.repo as string, finding.title);
+      }
+    } else if (action === "remove_forwarding" && finding.provider === "google") {
+      if (useMock) {
+        result = `Removed forwarding rule to ${evidence.email}`;
+      } else {
+        const { token } = await auth0.getAccessTokenForConnection({ connection: "google-oauth2" });
+        logAudit({
+          userId,
+          event: "token_vault_write_token_acquired",
+          provider: "google",
+        });
+        result = await removeGoogleForwarding(token, evidence.email as string);
+      }
     } else {
       result = `Executed ${action}`;
     }
 
-    // Log remediation execution
     logAudit({
       userId,
       event: "remediation_executed",
@@ -105,7 +183,6 @@ export async function POST(request: NextRequest) {
       details: { finding_id, action, result },
     });
 
-    // Update records
     updateFindingStatus(finding_id, "remediated");
     updateRemediation(remediation.id, {
       step_up_decision: "approved",
@@ -114,7 +191,6 @@ export async function POST(request: NextRequest) {
       token_expired_at: new Date().toISOString(),
     });
 
-    // Log token expiry
     logAudit({
       userId,
       event: "write_token_expired",
