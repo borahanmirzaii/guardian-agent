@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Shield, LayoutDashboard, Link2, AlertTriangle, ScrollText } from "lucide-react";
+import { Shield, LayoutDashboard, Link2, AlertTriangle, ScrollText, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+  { href: "/dashboard/agent", label: "Agent", icon: Bot },
   { href: "/dashboard/connections", label: "Connections", icon: Link2 },
   { href: "/dashboard/threats", label: "Threats", icon: AlertTriangle },
   { href: "/dashboard/audit", label: "Audit Trail", icon: ScrollText },
